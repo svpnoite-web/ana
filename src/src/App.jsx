@@ -735,7 +735,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1">Responsável (Digite livremente)</label>
+                <label className="block text-slate-300 mb-1">Responsável</label>
                 <input
                   type="text"
                   list="assignees-list"
