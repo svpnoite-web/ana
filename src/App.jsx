@@ -3,7 +3,7 @@ import {
   Calendar, CheckCircle2, Clock, AlertCircle, Plus, Filter, 
   Users, Video, Share2, Trash2, Edit3, Check, Flame,
   ExternalLink, Play, Film, HeartHandshake, X, Link as LinkIcon,
-  Search, Target, Trophy, FolderDown
+  Search, Target, Trophy, FolderDown, Download, Upload
 } from 'lucide-react';
 
 const InstagramIcon = ({ className = "w-4 h-4" }) => (
@@ -31,6 +31,25 @@ const getCurrentMonthKey = () => {
   return `${year}-${month}`;
 };
 
+// Funções seguras de persistência direta
+const getSavedData = (key, fallback) => {
+  try {
+    const item = window.localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch (e) {
+    console.error('Erro ao ler localStorage', e);
+    return fallback;
+  }
+};
+
+const setSavedData = (key, data) => {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error('Erro ao gravar localStorage', e);
+  }
+};
+
 const INITIAL_DEMANDS = [
   {
     id: 'd-1',
@@ -38,7 +57,6 @@ const INITIAL_DEMANDS = [
     assignee: 'Lucas Editor',
     channel: 'Reels',
     day: 'Segunda-feira',
-    deadline: '2026-10-26',
     status: 'done',
     priority: 'alta'
   },
@@ -48,39 +66,8 @@ const INITIAL_DEMANDS = [
     assignee: 'Mariana Social',
     channel: 'Feed / Carrossel',
     day: 'Terça-feira',
-    deadline: '2026-10-27',
     status: 'in-progress',
     priority: 'media'
-  },
-  {
-    id: 'd-3',
-    title: 'Gravação de stories ao vivo no salão nobre',
-    assignee: 'Beatriz Stories',
-    channel: 'Stories',
-    day: 'Quarta-feira',
-    deadline: '2026-10-28',
-    status: 'todo',
-    priority: 'alta'
-  },
-  {
-    id: 'd-4',
-    title: 'Campanha de Tráfego: Aniversário Teen & 15 Anos',
-    assignee: 'Rafael Tráfego',
-    channel: 'Tráfego Pago',
-    day: 'Quinta-feira',
-    deadline: '2026-10-29',
-    status: 'todo',
-    priority: 'alta'
-  },
-  {
-    id: 'd-5',
-    title: 'Vídeo TikTok: Tendência bastidores da iluminação',
-    assignee: 'Mariana Social',
-    channel: 'TikTok',
-    day: 'Sexta-feira',
-    deadline: '2026-10-30',
-    status: 'todo',
-    priority: 'baixa'
   }
 ];
 
@@ -91,14 +78,6 @@ const INITIAL_INSTA_REELS = [
     publishDate: '2026-10-20',
     author: 'Mariana Social',
     url: 'https://instagram.com/reel/exemplo1',
-    monthKey: '2026-10'
-  },
-  {
-    id: 'reel-2',
-    title: 'Entrada dos Noivos com Sparkles',
-    publishDate: '2026-10-23',
-    author: 'Lucas Editor',
-    url: 'https://instagram.com/reel/exemplo2',
     monthKey: '2026-10'
   }
 ];
@@ -115,42 +94,10 @@ const INITIAL_VIDEO_LEADS = [
       name: 'Reels Isabela 15 Anos'
     },
     tributeVideo: {
-      url: 'https://drive.google.com/drive/folders/exemplo-homenagem-isabela',
+      url: 'https://drive.google.com',
       name: 'Homenagem Pais e Amigos HD'
     },
-    notes: 'Enviado para a lista de convidados. 12 mães elogiaram o corte!'
-  },
-  {
-    id: 'vl-2',
-    birthdayPerson: 'Lorenzo (1 Aninho Safari)',
-    eventDate: '2026-10-25',
-    contactsSent: 35,
-    status: 'respondendo',
-    leadVideo: {
-      url: 'https://vimeo.com/exemplo-lorenzo',
-      name: 'Teaser Safari Vídeo Lead'
-    },
-    tributeVideo: {
-      url: 'https://drive.google.com/drive/folders/lorenzo-familia',
-      name: 'Vídeo Homenagem Retrospectiva'
-    },
-    notes: 'Vídeo teaser com trilha emocional. Alta taxa de cliques e respostas no WhatsApp.'
-  },
-  {
-    id: 'vl-3',
-    birthdayPerson: 'Clara & Gabriel (Gêmeos 7 Anos)',
-    eventDate: '2026-10-31',
-    contactsSent: 60,
-    status: 'pendente',
-    leadVideo: {
-      url: '',
-      name: ''
-    },
-    tributeVideo: {
-      url: '',
-      name: ''
-    },
-    notes: 'Aguardando render da retrospectiva animada e finalização dos cortes no drone.'
+    notes: 'Enviado para a lista de convidados.'
   }
 ];
 
@@ -161,46 +108,25 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('demandas');
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
 
-  // Metas armazenadas por mês (ex: { '2026-10': 12, '2026-11': 15 })
-  const [monthlyGoals, setMonthlyGoals] = useState(() => {
-    try {
-      const saved = localStorage.getItem('@mvp_prod_monthly_goals');
-      if (saved) return JSON.parse(saved);
-      return { [getCurrentMonthKey()]: 12 };
-    } catch {
-      return { [getCurrentMonthKey()]: 12 };
-    }
-  });
+  // Estados com leitura segura
+  const [monthlyGoals, setMonthlyGoals] = useState(() => 
+    getSavedData('@mvp_goals', { [getCurrentMonthKey()]: 12 })
+  );
+
+  const [demands, setDemands] = useState(() => 
+    getSavedData('@mvp_demands', INITIAL_DEMANDS)
+  );
+
+  const [instaReels, setInstaReels] = useState(() => 
+    getSavedData('@mvp_reels', INITIAL_INSTA_REELS)
+  );
+
+  const [videoLeads, setVideoLeads] = useState(() => 
+    getSavedData('@mvp_festas', INITIAL_VIDEO_LEADS)
+  );
 
   const [isEditingGoals, setIsEditingGoals] = useState(false);
   const [tempGoalInput, setTempGoalInput] = useState('');
-
-  const [demands, setDemands] = useState(() => {
-    try {
-      const saved = localStorage.getItem('@mvp_prod_demands');
-      return saved ? JSON.parse(saved) : INITIAL_DEMANDS;
-    } catch {
-      return INITIAL_DEMANDS;
-    }
-  });
-
-  const [instaReels, setInstaReels] = useState(() => {
-    try {
-      const saved = localStorage.getItem('@mvp_prod_reels');
-      return saved ? JSON.parse(saved) : INITIAL_INSTA_REELS;
-    } catch {
-      return INITIAL_INSTA_REELS;
-    }
-  });
-
-  const [videoLeads, setVideoLeads] = useState(() => {
-    try {
-      const saved = localStorage.getItem('@mvp_prod_festas');
-      return saved ? JSON.parse(saved) : INITIAL_VIDEO_LEADS;
-    } catch {
-      return INITIAL_VIDEO_LEADS;
-    }
-  });
 
   const [selectedAssignee, setSelectedAssignee] = useState('Todos');
   const [selectedStatus, setSelectedStatus] = useState('Todos');
@@ -229,18 +155,11 @@ export default function App() {
     name: ''
   });
 
-  const [playerModal, setPlayerModal] = useState({
-    isOpen: false,
-    title: '',
-    url: ''
-  });
-
   const [newDemand, setNewDemand] = useState({
     title: '',
     assignee: '',
     channel: 'Reels',
     day: 'Segunda-feira',
-    deadline: '',
     priority: 'alta',
     status: 'todo'
   });
@@ -257,48 +176,14 @@ export default function App() {
     tributeVideoUrl: ''
   });
 
-  // Lista dinâmica de responsáveis digitados
+  // Lista dinâmica de responsáveis
   const dynamicAssignees = useMemo(() => {
     const fromDemands = demands.map(d => d.assignee?.trim()).filter(Boolean);
     const fromReels = instaReels.map(r => r.author?.trim()).filter(Boolean);
-    const unique = Array.from(new Set([...fromDemands, ...fromReels]));
-    return unique.sort();
+    return Array.from(new Set([...fromDemands, ...fromReels])).sort();
   }, [demands, instaReels]);
 
-  // Persistência automática no localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('@mvp_prod_monthly_goals', JSON.stringify(monthlyGoals));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [monthlyGoals]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('@mvp_prod_demands', JSON.stringify(demands));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [demands]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('@mvp_prod_reels', JSON.stringify(instaReels));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [instaReels]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('@mvp_prod_festas', JSON.stringify(videoLeads));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [videoLeads]);
-
-  // Filtra Reels do mês selecionado
+  // Filtra Reels do mês
   const currentMonthReels = useMemo(() => {
     return instaReels.filter(reel => {
       const itemMonth = reel.monthKey || reel.publishDate?.slice(0, 7);
@@ -306,7 +191,7 @@ export default function App() {
     });
   }, [instaReels, selectedMonth]);
 
-  // Métricas dinâmicas com virada automática de mês
+  // Métricas
   const metrics = useMemo(() => {
     const totalDemands = demands.length;
     const completedDemands = demands.filter(d => d.status === 'done').length;
@@ -337,16 +222,17 @@ export default function App() {
     };
   }, [demands, videoLeads, currentMonthReels, monthlyGoals, selectedMonth]);
 
+  // AÇÕES COM GRAVAÇÃO INSTANTÂNEA E FORÇADA NO DISCO
   const handleToggleDemandStatus = (id) => {
     setDemands(prev => {
       const updated = prev.map(d => {
         if (d.id === id) {
-          const nextStatus = d.status === 'done' ? 'todo' : d.status === 'todo' ? 'in-progress' : 'done';
-          return { ...d, status: nextStatus };
+          const next = d.status === 'done' ? 'todo' : d.status === 'todo' ? 'in-progress' : 'done';
+          return { ...d, status: next };
         }
         return d;
       });
-      localStorage.setItem('@mvp_prod_demands', JSON.stringify(updated));
+      setSavedData('@mvp_demands', updated);
       return updated;
     });
   };
@@ -354,7 +240,7 @@ export default function App() {
   const handleDeleteDemand = (id) => {
     setDemands(prev => {
       const updated = prev.filter(d => d.id !== id);
-      localStorage.setItem('@mvp_prod_demands', JSON.stringify(updated));
+      setSavedData('@mvp_demands', updated);
       return updated;
     });
   };
@@ -369,7 +255,7 @@ export default function App() {
     };
     setDemands(prev => {
       const updated = [item, ...prev];
-      localStorage.setItem('@mvp_prod_demands', JSON.stringify(updated));
+      setSavedData('@mvp_demands', updated);
       return updated;
     });
     setIsDemandModalOpen(false);
@@ -378,7 +264,6 @@ export default function App() {
       assignee: '',
       channel: 'Reels',
       day: 'Segunda-feira',
-      deadline: '',
       priority: 'alta',
       status: 'todo'
     });
@@ -401,7 +286,7 @@ export default function App() {
 
     setInstaReels(prev => {
       const updated = [item, ...prev];
-      localStorage.setItem('@mvp_prod_reels', JSON.stringify(updated));
+      setSavedData('@mvp_reels', updated);
       return updated;
     });
 
@@ -417,7 +302,7 @@ export default function App() {
   const handleDeleteReel = (id) => {
     setInstaReels(prev => {
       const updated = prev.filter(r => r.id !== id);
-      localStorage.setItem('@mvp_prod_reels', JSON.stringify(updated));
+      setSavedData('@mvp_reels', updated);
       return updated;
     });
   };
@@ -445,7 +330,7 @@ export default function App() {
 
     setVideoLeads(prev => {
       const updated = [item, ...prev];
-      localStorage.setItem('@mvp_prod_festas', JSON.stringify(updated));
+      setSavedData('@mvp_festas', updated);
       return updated;
     });
     setIsLeadModalOpen(false);
@@ -466,7 +351,7 @@ export default function App() {
   const handleDeleteLead = (id) => {
     setVideoLeads(prev => {
       const updated = prev.filter(l => l.id !== id);
-      localStorage.setItem('@mvp_prod_festas', JSON.stringify(updated));
+      setSavedData('@mvp_festas', updated);
       return updated;
     });
   };
@@ -474,76 +359,9 @@ export default function App() {
   const handleUpdateLeadStatus = (id, newStatus) => {
     setVideoLeads(prev => {
       const updated = prev.map(l => l.id === id ? { ...l, status: newStatus } : l);
-      localStorage.setItem('@mvp_prod_festas', JSON.stringify(updated));
+      setSavedData('@mvp_festas', updated);
       return updated;
     });
-  };
-
-  const handleOpenDriveLinkModal = (item, videoKey, videoTitle) => {
-    const currentVideo = item[videoKey] || {};
-    setDriveModal({
-      isOpen: true,
-      partyId: item.id,
-      partyName: item.birthdayPerson,
-      videoType: videoKey,
-      videoTitle: videoTitle,
-      url: currentVideo.url || '',
-      name: currentVideo.name || ''
-    });
-  };
-
-  const handleSaveDriveLink = (e) => {
-    e.preventDefault();
-    if (!driveModal.partyId) return;
-
-    setVideoLeads(prev => {
-      const updated = prev.map(item => {
-        if (item.id === driveModal.partyId) {
-          return {
-            ...item,
-            [driveModal.videoType]: {
-              url: driveModal.url.trim(),
-              name: driveModal.name.trim() || (driveModal.url.includes('drive.google.com') ? 'Google Drive' : 'Link do Vídeo')
-            }
-          };
-        }
-        return item;
-      });
-      localStorage.setItem('@mvp_prod_festas', JSON.stringify(updated));
-      return updated;
-    });
-
-    setDriveModal({
-      isOpen: false,
-      partyId: null,
-      partyName: '',
-      videoType: '',
-      videoTitle: '',
-      url: '',
-      name: ''
-    });
-  };
-
-  const isGoogleDriveLink = (url) => {
-    return Boolean(url && (url.includes('drive.google.com') || url.includes('docs.google.com')));
-  };
-
-  const isDirectVideoFile = (url) => {
-    return Boolean(url && (url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov')));
-  };
-
-  const handleOpenMedia = (partyName, label, videoObj) => {
-    if (!videoObj || !videoObj.url) return;
-
-    if (isDirectVideoFile(videoObj.url)) {
-      setPlayerModal({
-        isOpen: true,
-        title: `${partyName} — ${label}`,
-        url: videoObj.url
-      });
-    } else {
-      window.open(videoObj.url, '_blank', 'noopener,noreferrer');
-    }
   };
 
   const handleSaveGoal = (e) => {
@@ -551,10 +369,58 @@ export default function App() {
     const targetVal = Math.max(1, Number(tempGoalInput) || 12);
     setMonthlyGoals(prev => {
       const updated = { ...prev, [selectedMonth]: targetVal };
-      localStorage.setItem('@mvp_prod_monthly_goals', JSON.stringify(updated));
+      setSavedData('@mvp_goals', updated);
       return updated;
     });
     setIsEditingGoals(false);
+  };
+
+  // BACKUP E RESTAURAÇÃO PARA NUNCA PERDER DADOS
+  const handleExportBackup = () => {
+    const data = {
+      monthlyGoals,
+      demands,
+      instaReels,
+      videoLeads,
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_midias_via_parque_${getCurrentMonthKey()}.json`;
+    a.click();
+  };
+
+  const handleImportBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.demands) {
+          setDemands(data.demands);
+          setSavedData('@mvp_demands', data.demands);
+        }
+        if (data.instaReels) {
+          setInstaReels(data.instaReels);
+          setSavedData('@mvp_reels', data.instaReels);
+        }
+        if (data.videoLeads) {
+          setVideoLeads(data.videoLeads);
+          setSavedData('@mvp_festas', data.videoLeads);
+        }
+        if (data.monthlyGoals) {
+          setMonthlyGoals(data.monthlyGoals);
+          setSavedData('@mvp_goals', data.monthlyGoals);
+        }
+        alert('Dados restaurados com sucesso!');
+      } catch (err) {
+        alert('Arquivo de backup inválido.');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const filteredDemands = demands.filter(d => {
@@ -570,52 +436,8 @@ export default function App() {
     return matchStatus && matchSearch;
   });
 
-  const copyWeeklySummaryToWhatsApp = () => {
-    let text = `🚀 *RELATÓRIO: MÍDIAS VIA PARQUE*\n`;
-    text += `📅 *Mês de Referência:* ${selectedMonth}\n\n`;
-    text += `🎯 *METAS DE REELS NO INSTAGRAM:*\n`;
-    text += `• Reels Postados: ${metrics.totalReelsPosted}/${metrics.reelsGoalTarget} (${metrics.reelsProgressPercent}%) ${metrics.isGoalCompleted ? '🎉 META DO MÊS BATIDA!' : `(Faltam ${metrics.reelsRemaining} vídeos)`}\n\n`;
-    text += `📊 *RESULTADOS GERAIS:*\n`;
-    text += `• Demandas da Semana: ${metrics.completedDemands}/${metrics.totalDemands} (${metrics.completionRate}% concluídas)\n`;
-    text += `• Total de Contatos Alcançados: *${metrics.totalLeadsSent}* pessoas notificadas\n`;
-    text += `• Festas com Vídeos Mapeados: ${metrics.eventsDispatched} de ${metrics.totalEvents}\n`;
-
-    text += `\n🎬 *REELS DESTE MÊS (${selectedMonth}):*\n`;
-    if (currentMonthReels.length === 0) {
-      text += `_Nenhum Reels registrado para este mês ainda._\n`;
-    } else {
-      currentMonthReels.forEach(r => {
-        text += `• ${r.title} (${r.publishDate}) - Resp: ${r.author} ${r.url ? '(' + r.url + ')' : ''}\n`;
-      });
-    }
-
-    text += `\n🎂 *FESTAS & RASTREAMENTO MULTIMÍDIA:*\n`;
-    videoLeads.forEach(v => {
-      const hasLead = v.leadVideo?.url ? '✅ Sim' : '❌ Pendente';
-      const hasHomenagem = v.tributeVideo?.url ? '✅ Sim' : '❌ Pendente';
-      text += `• *${v.birthdayPerson}* (${v.eventDate || 'Sem data'})\n`;
-      text += `   - Contatos: ${v.contactsSent} | Vídeo Lead: ${hasLead} | Vídeo Homenagem: ${hasHomenagem}\n`;
-      if (v.notes) text += `   - Obs: ${v.notes}\n`;
-    });
-
-    text += `\n📋 *DEMANDAS EM ABERTO DA EQUIPE:*\n`;
-    const openDemands = demands.filter(d => d.status !== 'done');
-    if (openDemands.length === 0) {
-      text += `_Toda a grade da semana entregue com sucesso!_ ✨\n`;
-    } else {
-      openDemands.forEach(d => {
-        text += `• [${d.day.split('-')[0]}] ${d.title} (${d.assignee} - ${d.channel})\n`;
-      });
-    }
-
-    navigator.clipboard.writeText(text);
-    setCopyFeedback(true);
-    setTimeout(() => setCopyFeedback(false), 2500);
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Sugestões dinâmicas de responsáveis */}
       <datalist id="assignees-list">
         {dynamicAssignees.map(name => (
           <option key={name} value={name} />
@@ -626,79 +448,58 @@ export default function App() {
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg">
               <Film className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="font-bold text-lg leading-tight bg-gradient-to-r from-white via-slate-100 to-indigo-300 bg-clip-text text-transparent">
-                  Mídias Via Parque
-                </h1>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-pink-300 font-semibold uppercase tracking-wider">
+                <h1 className="font-bold text-lg leading-tight text-white">Mídias Via Parque</h1>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 font-semibold uppercase">
                   Reels & Vídeos
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Demandas Semanais, Reels do Instagram & Rastreamento de Festas</p>
+              <p className="text-xs text-slate-400">Demandas Semanais, Reels & Festas</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={copyWeeklySummaryToWhatsApp}
-              className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs sm:text-sm font-medium shadow-sm"
-              title="Copiar relatório formatado para o WhatsApp"
+              onClick={handleExportBackup}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1"
+              title="Baixar Backup dos Dados"
             >
-              {copyFeedback ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span className="font-semibold">Relatório Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Exportar p/ WhatsApp</span>
-                </>
-              )}
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Backup</span>
             </button>
+
+            <label className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1 cursor-pointer" title="Restaurar Backup">
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">Restaurar</span>
+              <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
+            </label>
           </div>
         </div>
       </header>
 
-      {/* Conteúdo Principal */}
+      {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
-        {/* Banner de Metas & Histórico Mensal */}
-        <section className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-purple-950/60 border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
+        {/* Banner de Metas & Histórico */}
+        <section className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-purple-950/60 border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-xl">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
                 <Target className="w-5 h-5" />
               </div>
               <div>
-                <div className="flex items-center space-x-2">
-                  <h2 className="text-base sm:text-lg font-bold text-white">Metas & Histórico Mensal</h2>
-                  {metrics.isGoalCompleted ? (
-                    <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-semibold animate-pulse">
-                      <Trophy className="w-3 h-3 text-emerald-400" />
-                      <span>Meta Batida! 🎉</span>
-                    </span>
-                  ) : (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 font-medium">
-                      Faltam {metrics.reelsRemaining} Reels para a meta
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400">Contagem de Reels reinicia automaticamente a cada novo mês</p>
+                <h2 className="text-base sm:text-lg font-bold text-white">Metas & Histórico Mensal</h2>
+                <p className="text-xs text-slate-400">Virada automática no início de cada mês</p>
               </div>
             </div>
 
-            {/* Seletor de Mês e Ajuste de Meta */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-1">
+              <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1">
                 <Calendar className="w-3.5 h-3.5 text-indigo-400 mr-2" />
-                <span className="text-[11px] text-slate-400 mr-1.5">Mês:</span>
                 <input
                   type="month"
                   value={selectedMonth}
@@ -712,145 +513,88 @@ export default function App() {
                   setTempGoalInput(String(metrics.reelsGoalTarget));
                   setIsEditingGoals(true);
                 }}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-indigo-400/50 text-xs font-semibold transition-all shadow-sm"
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold"
               >
-                <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Ajustar Meta</span>
+                <Edit3 className="w-3.5 h-3.5 inline mr-1" />
+                Ajustar Meta
               </button>
             </div>
           </div>
 
-          {/* Cards de Métricas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-            {/* Meta de Reels do Mês Selecionado */}
-            <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 relative group hover:border-pink-500/40 transition-all flex flex-col justify-between">
+            {/* Reels do Mês */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 text-xs">
+                <div className="flex items-center justify-between text-xs text-slate-400">
                   <span className="font-semibold text-slate-300 flex items-center gap-1.5">
                     <InstagramIcon className="w-4 h-4 text-pink-400" /> Reels em {selectedMonth}
                   </span>
                   <button
                     onClick={() => setIsReelModalOpen(true)}
-                    className="text-xs px-2 py-0.5 rounded-lg bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/30 text-pink-300 font-semibold flex items-center gap-1 transition-all"
+                    className="text-xs px-2 py-0.5 rounded-lg bg-pink-600/20 border border-pink-500/30 text-pink-300 font-semibold"
                   >
-                    <Plus className="w-3 h-3" /> Postou Reels?
+                    + Postou?
                   </button>
                 </div>
-
                 <div className="mt-3 flex items-baseline justify-between">
-                  <div className="flex items-baseline space-x-1">
-                    <span className="text-3xl font-extrabold text-white">{metrics.totalReelsPosted}</span>
-                    <span className="text-sm font-semibold text-slate-400">/ {metrics.reelsGoalTarget} lançados</span>
-                  </div>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    metrics.isGoalCompleted 
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                      : 'bg-pink-500/20 text-pink-300 border border-pink-500/30'
-                  }`}>
-                    {metrics.reelsProgressPercent}%
-                  </span>
+                  <span className="text-3xl font-extrabold text-white">{metrics.totalReelsPosted}</span>
+                  <span className="text-xs text-slate-400">/ {metrics.reelsGoalTarget} meta</span>
                 </div>
-
                 <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
                   <div 
-                    className={`h-full rounded-full transition-all duration-700 ${
-                      metrics.isGoalCompleted ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-pink-500 to-rose-500'
-                    }`}
+                    className="h-full bg-pink-500 transition-all duration-500"
                     style={{ width: `${metrics.reelsProgressPercent}%` }} 
                   />
                 </div>
               </div>
-
-              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
-                <button
-                  onClick={() => setActiveTab('reelsInsta')}
-                  className="text-pink-400 hover:text-pink-300 font-medium underline text-[11px]"
-                >
-                  Ver Reels de {selectedMonth} ({metrics.totalReelsPosted})
-                </button>
-                <span className="text-slate-300 font-medium">
-                  {metrics.isGoalCompleted ? '🎯 Meta batida!' : `Faltam ${metrics.reelsRemaining}`}
-                </span>
-              </div>
+              <span className="text-[11px] text-slate-400 mt-2">
+                {metrics.isGoalCompleted ? 'Meta atingida! 🎉' : `Faltam ${metrics.reelsRemaining} Reels`}
+              </span>
             </div>
 
             {/* Contatos Alcançados */}
-            <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 group hover:border-purple-500/40 transition-all flex flex-col justify-between">
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Flame className="w-4 h-4 text-purple-400" /> Contatos Alcançados
-                  </span>
-                  <span className="text-[10px] uppercase font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">
-                    Total Acumulado
-                  </span>
-                </div>
-
-                <div className="mt-3 flex items-baseline space-x-2">
+                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-purple-400" /> Contatos Alcançados
+                </span>
+                <div className="mt-3">
                   <span className="text-3xl font-extrabold text-white">{metrics.totalLeadsSent}</span>
-                  <span className="text-sm font-semibold text-slate-400">pessoas impactadas</span>
+                  <span className="text-xs text-slate-400 ml-1">pessoas impactadas</span>
                 </div>
-
-                <p className="text-xs text-slate-400 mt-2">
-                  Soma de convidados que receberam disparos de vídeos através das festas cadastradas.
-                </p>
               </div>
-
-              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
-                <span>{metrics.eventsDispatched} festas disparadas</span>
-                <span className="text-emerald-400 font-medium">WhatsApp ativo</span>
-              </div>
+              <span className="text-[11px] text-slate-400 mt-2">{metrics.eventsDispatched} festas disparadas</span>
             </div>
 
-            {/* Eficiência da Semana */}
-            <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 group hover:border-indigo-500/40 transition-all flex flex-col justify-between">
+            {/* Demandas da Semana */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between text-slate-400 text-xs">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-indigo-400" /> Demandas da Semana
-                  </span>
-                  <span className="text-[10px] uppercase font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-                    Equipe
-                  </span>
-                </div>
-
+                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-indigo-400" /> Demandas Semanais
+                </span>
                 <div className="mt-3 flex items-baseline justify-between">
-                  <div className="flex items-baseline space-x-1">
-                    <span className="text-3xl font-extrabold text-white">{metrics.completedDemands}</span>
-                    <span className="text-sm font-semibold text-slate-400">/ {metrics.totalDemands} tarefas</span>
-                  </div>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    {metrics.completionRate}%
-                  </span>
+                  <span className="text-3xl font-extrabold text-white">{metrics.completedDemands}</span>
+                  <span className="text-xs text-slate-400">/ {metrics.totalDemands} prontas</span>
                 </div>
-
                 <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
                   <div 
-                    className="bg-gradient-to-r from-indigo-500 to-cyan-400 h-full rounded-full transition-all duration-700" 
+                    className="h-full bg-indigo-500 transition-all duration-500"
                     style={{ width: `${metrics.completionRate}%` }} 
                   />
                 </div>
               </div>
-
-              <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
-                <span>{demands.filter(d => d.status === 'in-progress').length} em produção</span>
-                <span className="text-slate-300 font-medium">
-                  {demands.filter(d => d.status === 'todo').length} a iniciar
-                </span>
-              </div>
+              <span className="text-[11px] text-slate-400 mt-2">{metrics.completionRate}% concluído</span>
             </div>
           </div>
         </section>
 
-        {/* Abas de Navegação */}
+        {/* Abas */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
           <div className="flex flex-wrap space-x-2 gap-y-2">
             <button
               onClick={() => setActiveTab('demandas')}
               className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'demandas'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                activeTab === 'demandas' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Calendar className="w-4 h-4" />
@@ -860,9 +604,7 @@ export default function App() {
             <button
               onClick={() => setActiveTab('videoLeads')}
               className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'videoLeads'
-                  ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg shadow-purple-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                activeTab === 'videoLeads' ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Video className="w-4 h-4" />
@@ -872,9 +614,7 @@ export default function App() {
             <button
               onClick={() => setActiveTab('reelsInsta')}
               className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                activeTab === 'reelsInsta'
-                  ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-lg shadow-pink-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                activeTab === 'reelsInsta' ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
               <InstagramIcon className="w-4 h-4" />
@@ -886,7 +626,7 @@ export default function App() {
             {activeTab === 'demandas' && (
               <button
                 onClick={() => setIsDemandModalOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-all"
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs sm:text-sm font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 <span>Nova Demanda</span>
@@ -896,7 +636,7 @@ export default function App() {
             {activeTab === 'videoLeads' && (
               <button
                 onClick={() => setIsLeadModalOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-all"
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl text-xs sm:text-sm font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 <span>Anexar Nova Festa</span>
@@ -906,7 +646,7 @@ export default function App() {
             {activeTab === 'reelsInsta' && (
               <button
                 onClick={() => setIsReelModalOpen(true)}
-                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-md transition-all"
+                className="w-full sm:w-auto flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-xl text-xs sm:text-sm font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 <span>Informar Reels Postado</span>
@@ -927,18 +667,18 @@ export default function App() {
                 <select
                   value={selectedAssignee}
                   onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+                  className="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none"
                 >
-                  <option value="Todos">Todos os Membros</option>
-                  {dynamicAssignees.map(member => (
-                    <option key={member} value={member}>{member}</option>
+                  <option value="Todos">Todos os Responsáveis</option>
+                  {dynamicAssignees.map(m => (
+                    <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
 
                 <select
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+                  className="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none"
                 >
                   <option value="Todos">Todos os Status</option>
                   <option value="todo">A Fazer</option>
@@ -946,960 +686,348 @@ export default function App() {
                   <option value="done">Concluído</option>
                 </select>
               </div>
-
-              <span className="text-xs text-slate-400">
-                Mostrando <strong>{filteredDemands.length}</strong> demandas
-              </span>
             </div>
 
-            {filteredDemands.length === 0 ? (
-              <div className="text-center py-12 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                <p className="text-slate-400 text-sm">Nenhuma demanda semanal encontrada.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredDemands.map((demand) => {
-                  const isDone = demand.status === 'done';
-                  const isInProgress = demand.status === 'in-progress';
-
-                  return (
-                    <div
-                      key={demand.id}
-                      className={`relative bg-slate-900 border rounded-2xl p-4 transition-all flex flex-col justify-between ${
-                        isDone
-                          ? 'border-emerald-500/20 bg-emerald-950/10'
-                          : isInProgress
-                          ? 'border-indigo-500/40 shadow-lg shadow-indigo-950/20'
-                          : 'border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
-                            {demand.day}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <span
-                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                demand.priority === 'alta'
-                                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                  : demand.priority === 'media'
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  : 'bg-slate-700/50 text-slate-400 border border-slate-600/50'
-                              }`}
-                            >
-                              {demand.priority}
-                            </span>
-                            <button
-                              onClick={() => handleDeleteDemand(demand.id)}
-                              className="text-slate-500 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-800 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <h4
-                          className={`mt-3 text-sm font-semibold leading-snug ${
-                            isDone ? 'line-through text-slate-500' : 'text-slate-100'
-                          }`}
-                        >
-                          {demand.title}
-                        </h4>
-
-                        <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                          <span className="text-xs px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex items-center gap-1">
-                            <Users className="w-3 h-3 text-indigo-400" />
-                            {demand.assignee}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-                            {demand.channel}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                        <button
-                          onClick={() => handleToggleDemandStatus(demand.id)}
-                          className={`flex items-center space-x-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all ${
-                            isDone
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                              : isInProgress
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700'
-                          }`}
-                        >
-                          {isDone ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Concluído</span>
-                            </>
-                          ) : isInProgress ? (
-                            <>
-                              <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                              <span>Em Produção</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
-                              <span>A Fazer</span>
-                            </>
-                          )}
-                        </button>
-                        <span className="text-[11px] text-slate-500">Mudar status</span>
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredDemands.map((demand) => (
+                <div key={demand.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between">
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">
+                        {demand.day}
+                      </span>
+                      <button onClick={() => handleDeleteDemand(demand.id)} className="text-slate-500 hover:text-rose-400">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 2. Vídeo Lead e Homenagem */}
-        {activeTab === 'videoLeads' && (
-          <div className="space-y-4">
-            <div className="bg-slate-900/60 p-3 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-              <div className="flex flex-1 items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700 focus-within:border-indigo-500">
-                <Search className="w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar aniversariante ou tema..."
-                  value={leadSearch}
-                  onChange={(e) => setLeadSearch(e.target.value)}
-                  className="bg-transparent text-xs text-white placeholder-slate-400 w-full focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-400">Status:</span>
-                <select
-                  value={leadStatusFilter}
-                  onChange={(e) => setLeadStatusFilter(e.target.value)}
-                  className="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="Todos">Todos os Status</option>
-                  <option value="pendente">Pendente de Disparo</option>
-                  <option value="disparado">Disparado</option>
-                  <option value="respondendo">Respondendo Leads</option>
-                </select>
-              </div>
-            </div>
-
-            {filteredLeads.length === 0 ? (
-              <div className="text-center py-16 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                <Video className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-slate-400 text-sm">Nenhum registro de festa cadastrado.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {filteredLeads.map((item) => {
-                  const hasLeadVideo = Boolean(item.leadVideo?.url);
-                  const hasTributeVideo = Boolean(item.tributeVideo?.url);
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition-all"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="text-[11px] font-mono text-purple-400 font-medium bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
-                              {item.eventDate ? `Data: ${item.eventDate}` : 'Data pendente'}
-                            </span>
-                            <h3 className="text-lg font-bold text-white mt-1.5">{item.birthdayPerson}</h3>
-                          </div>
-                          
-                          <button
-                            onClick={() => handleDeleteLead(item.id)}
-                            className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div className="mt-4 p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between">
-                          <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                            <Flame className="w-4 h-4 text-purple-400" /> Contatos Alcançados / Enviados
-                          </span>
-                          <span className="text-lg font-extrabold text-indigo-400">{item.contactsSent}</span>
-                        </div>
-
-                        {/* Mídias */}
-                        <div className="mt-4 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
-                              Mídias Anexadas da Festa:
-                            </h4>
-                            <span className="text-[10px] text-indigo-400 flex items-center gap-1">
-                              <LinkIcon className="w-2.5 h-2.5" /> Suporta Google Drive & Links Diretos
-                            </span>
-                          </div>
-
-                          {/* 1. Vídeo Lead */}
-                          <div className={`p-3 rounded-xl border transition-all ${
-                            hasLeadVideo ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-950/40 border-dashed border-slate-800'
-                          }`}>
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center space-x-2.5 overflow-hidden pr-2">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                  isGoogleDriveLink(item.leadVideo?.url)
-                                    ? 'bg-amber-500/20 border border-amber-500/30'
-                                    : 'bg-pink-500/20 border border-pink-500/30'
-                                }`}>
-                                  {isGoogleDriveLink(item.leadVideo?.url) ? (
-                                    <FolderDown className="w-4 h-4 text-amber-400" />
-                                  ) : (
-                                    <Video className="w-4 h-4 text-pink-400" />
-                                  )}
-                                </div>
-                                <div className="overflow-hidden">
-                                  <p className="text-xs font-semibold text-slate-200 truncate">
-                                    {item.leadVideo?.name || 'Vídeo Lead da Festa'}
-                                  </p>
-                                  <div className="text-[10px] flex items-center gap-1.5 mt-0.5">
-                                    {hasLeadVideo ? (
-                                      <span className="text-emerald-400 flex items-center gap-0.5 truncate font-mono text-[10px]">
-                                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                                        {item.leadVideo.url}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-500">Nenhum link vinculado</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center space-x-1 shrink-0">
-                                {hasLeadVideo && (
-                                  <button
-                                    onClick={() => handleOpenMedia(item.birthdayPerson, 'Vídeo Lead', item.leadVideo)}
-                                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                                      isGoogleDriveLink(item.leadVideo?.url)
-                                        ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300'
-                                        : 'bg-pink-600/20 hover:bg-pink-600/30 border-pink-500/40 text-pink-300'
-                                    }`}
-                                  >
-                                    {isDirectVideoFile(item.leadVideo?.url) ? <Play className="w-3 h-3 fill-current" /> : <ExternalLink className="w-3 h-3" />}
-                                    <span>{isDirectVideoFile(item.leadVideo?.url) ? 'Assistir' : isGoogleDriveLink(item.leadVideo?.url) ? 'Abrir Drive' : 'Abrir'}</span>
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => handleOpenDriveLinkModal(item, 'leadVideo', 'Vídeo Lead')}
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs"
-                                  title="Editar link"
-                                >
-                                  <LinkIcon className="w-3.5 h-3.5 text-pink-400" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 2. Vídeo Homenagem */}
-                          <div className={`p-3 rounded-xl border transition-all ${
-                            hasTributeVideo ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-950/40 border-dashed border-slate-800'
-                          }`}>
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center space-x-2.5 overflow-hidden pr-2">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                                  isGoogleDriveLink(item.tributeVideo?.url)
-                                    ? 'bg-amber-500/20 border border-amber-500/30'
-                                    : 'bg-purple-500/20 border border-purple-500/30'
-                                }`}>
-                                  {isGoogleDriveLink(item.tributeVideo?.url) ? (
-                                    <FolderDown className="w-4 h-4 text-amber-400" />
-                                  ) : (
-                                    <HeartHandshake className="w-4 h-4 text-purple-400" />
-                                  )}
-                                </div>
-                                <div className="overflow-hidden">
-                                  <p className="text-xs font-semibold text-slate-200 truncate">
-                                    {item.tributeVideo?.name || 'Vídeo Homenagem'}
-                                  </p>
-                                  <div className="text-[10px] flex items-center gap-1.5 mt-0.5">
-                                    {hasTributeVideo ? (
-                                      <span className="text-emerald-400 flex items-center gap-0.5 truncate font-mono text-[10px]">
-                                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                                        {item.tributeVideo.url}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-500">Nenhum link vinculado</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center space-x-1 shrink-0">
-                                {hasTributeVideo && (
-                                  <button
-                                    onClick={() => handleOpenMedia(item.birthdayPerson, 'Vídeo Homenagem', item.tributeVideo)}
-                                    className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                                      isGoogleDriveLink(item.tributeVideo?.url)
-                                        ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300'
-                                        : 'bg-purple-600/20 hover:bg-purple-600/30 border-purple-500/40 text-purple-300'
-                                    }`}
-                                  >
-                                    {isDirectVideoFile(item.tributeVideo?.url) ? <Play className="w-3 h-3 fill-current" /> : <ExternalLink className="w-3 h-3" />}
-                                    <span>{isDirectVideoFile(item.tributeVideo?.url) ? 'Assistir' : isGoogleDriveLink(item.tributeVideo?.url) ? 'Abrir Drive' : 'Abrir'}</span>
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => handleOpenDriveLinkModal(item, 'tributeVideo', 'Vídeo Homenagem')}
-                                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs"
-                                  title="Editar link"
-                                >
-                                  <LinkIcon className="w-3.5 h-3.5 text-purple-400" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {item.notes && (
-                          <div className="mt-3 text-xs text-slate-400 bg-slate-800/40 p-2.5 rounded-xl border border-slate-800">
-                            <span className="font-semibold text-slate-300">Feedback:</span> {item.notes}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                        <span className="text-xs text-slate-400 font-medium">Status de Disparo:</span>
-                        <select
-                          value={item.status}
-                          onChange={(e) => handleUpdateLeadStatus(item.id, e.target.value)}
-                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none transition-all ${
-                            item.status === 'disparado'
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              : item.status === 'respondendo'
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                              : 'bg-slate-800 text-slate-300 border-slate-700'
-                          }`}
-                        >
-                          <option value="pendente">⏳ Pendente de Disparo</option>
-                          <option value="disparado">🚀 Disparado aos Contatos</option>
-                          <option value="respondendo">💬 Respondendo Clientes</option>
-                        </select>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 3. Reels do Instagram */}
-        {activeTab === 'reelsInsta' && (
-          <div className="space-y-4">
-            <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <InstagramIcon className="w-5 h-5 text-pink-400" /> Histórico de Reels em {selectedMonth}
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {metrics.totalReelsPosted} Reels lançados de {metrics.reelsGoalTarget} estipulados para este mês ({metrics.reelsProgressPercent}% concluído)
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIsReelModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3.5 py-2 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white rounded-xl text-xs font-semibold shadow-md transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Registrar Novo Reels</span>
-              </button>
-            </div>
-
-            {currentMonthReels.length === 0 ? (
-              <div className="text-center py-16 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                <InstagramIcon className="w-8 h-8 text-pink-500 mx-auto mb-2 opacity-50" />
-                <p className="text-slate-400 text-sm">Nenhum Reels registrado para o mês {selectedMonth}.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {currentMonthReels.map((reel) => (
-                  <div
-                    key={reel.id}
-                    className="bg-slate-900 border border-slate-800 hover:border-pink-500/40 rounded-2xl p-4 flex flex-col justify-between transition-all"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between">
-                        <span className="text-[11px] font-mono text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-md border border-pink-500/20">
-                          {reel.publishDate}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteReel(reel.id)}
-                          className="text-slate-500 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-800 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <h4 className="mt-3 text-sm font-bold text-white leading-snug">
-                        {reel.title}
-                      </h4>
-
-                      <div className="mt-3 flex items-center gap-1.5">
-                        <span className="text-xs px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex items-center gap-1">
-                          <Users className="w-3 h-3 text-indigo-400" />
-                          {reel.author}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                      {reel.url ? (
-                        <a
-                          href={reel.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center space-x-1 text-xs text-pink-400 hover:text-pink-300 font-semibold"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>Ver no Instagram</span>
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-slate-500 italic">Sem link</span>
-                      )}
-                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">
-                        Lançado ✅
+                    <h4 className="mt-3 text-sm font-semibold text-white">{demand.title}</h4>
+                    <div className="flex items-center gap-1.5 mt-3">
+                      <span className="text-xs px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        {demand.assignee}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded-lg bg-slate-800 text-slate-300">
+                        {demand.channel}
                       </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <button
+                      onClick={() => handleToggleDemandStatus(demand.id)}
+                      className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border ${
+                        demand.status === 'done'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : demand.status === 'in-progress'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      {demand.status === 'done' ? 'Concluído' : demand.status === 'in-progress' ? 'Em Produção' : 'A Fazer'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 2. Festas */}
+        {activeTab === 'videoLeads' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filteredLeads.map((item) => (
+                <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[11px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md">
+                          {item.eventDate || 'Sem data'}
+                        </span>
+                        <h3 className="text-lg font-bold text-white mt-1.5">{item.birthdayPerson}</h3>
+                      </div>
+                      <button onClick={() => handleDeleteLead(item.id)} className="text-slate-500 hover:text-rose-400">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                      <span className="text-xs text-slate-400">Contatos Alcançados</span>
+                      <span className="text-lg font-extrabold text-indigo-400">{item.contactsSent}</span>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {item.leadVideo?.url && (
+                        <a href={item.leadVideo.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-pink-300 hover:bg-slate-800">
+                          <span>Vídeo Lead</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      {item.tributeVideo?.url && (
+                        <a href={item.tributeVideo.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-purple-300 hover:bg-slate-800">
+                          <span>Vídeo Homenagem</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Status:</span>
+                    <select
+                      value={item.status}
+                      onChange={(e) => handleUpdateLeadStatus(item.id, e.target.value)}
+                      className="text-xs font-bold px-2.5 py-1.5 rounded-xl border bg-slate-800 border-slate-700 text-white"
+                    >
+                      <option value="pendente">Pendente</option>
+                      <option value="disparado">Disparado</option>
+                      <option value="respondendo">Respondendo</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Reels do Mês */}
+        {activeTab === 'reelsInsta' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentMonthReels.map((reel) => (
+                <div key={reel.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-start justify-between">
+                      <span className="text-[11px] text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-md">
+                        {reel.publishDate}
+                      </span>
+                      <button onClick={() => handleDeleteReel(reel.id)} className="text-slate-500 hover:text-rose-400">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <h4 className="mt-3 text-sm font-bold text-white">{reel.title}</h4>
+                    <p className="text-xs text-slate-400 mt-1">Por: {reel.author}</p>
+                  </div>
+                  {reel.url && (
+                    <a href={reel.url} target="_blank" rel="noreferrer" className="mt-4 text-xs text-pink-400 hover:underline flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" /> Ver Reels
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>
 
-      {/* Modal Ajustar Metas */}
-      {isEditingGoals && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2">
-                <Target className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Meta de Reels para {selectedMonth}</h3>
-              </div>
-              <button
-                onClick={() => setIsEditingGoals(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveGoal} className="space-y-4 mt-4 text-xs">
+      {/* Modal Demanda */}
+      {isDemandModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6">
+            <h3 className="text-base font-bold text-white mb-4">Nova Demanda</h3>
+            <form onSubmit={handleCreateDemand} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-200 mb-1">
-                  🎬 Meta de Reels do Mês ({selectedMonth})
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    required
-                    value={tempGoalInput}
-                    onChange={(e) => setTempGoalInput(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-bold text-sm"
-                  />
-                  <span className="absolute right-3 top-2.5 text-slate-400 text-xs">vídeos Reels</span>
+                <label className="block text-slate-300 mb-1">Título *</label>
+                <input
+                  type="text"
+                  required
+                  value={newDemand.title}
+                  onChange={(e) => setNewDemand({ ...newDemand, title: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1">Responsável (Digite livremente)</label>
+                <input
+                  type="text"
+                  list="assignees-list"
+                  placeholder="Nome do responsável..."
+                  value={newDemand.assignee}
+                  onChange={(e) => setNewDemand({ ...newDemand, assignee: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-300 mb-1">Formato</label>
+                  <select
+                    value={newDemand.channel}
+                    onChange={(e) => setNewDemand({ ...newDemand, channel: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  >
+                    {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1">Dia</label>
+                  <select
+                    value={newDemand.day}
+                    onChange={(e) => setNewDemand({ ...newDemand, day: e.target.value })}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  >
+                    {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsEditingGoals(false)}
-                  className="px-4 py-2 text-slate-400 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg transition-all"
-                >
-                  Salvar Meta
-                </button>
+              <div className="flex justify-end space-x-2 pt-3">
+                <button type="button" onClick={() => setIsDemandModalOpen(false)} className="px-4 py-2 text-slate-400">Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold">Salvar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Modal Registrar Reels */}
+      {/* Modal Reels */}
       {isReelModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-pink-500/30 rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-pink-500/20 border border-pink-500/40 flex items-center justify-center">
-                  <InstagramIcon className="w-4 h-4 text-pink-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Informar Reels Postado</h3>
-                  <p className="text-[11px] text-slate-400">Vinculado ao mês da data selecionada</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsReelModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateReel} className="space-y-4 mt-4 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-slate-900 border border-pink-500/30 rounded-3xl max-w-md w-full p-6">
+            <h3 className="text-base font-bold text-white mb-4">Informar Reels Postado</h3>
+            <form onSubmit={handleCreateReel} className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-200 mb-1">
-                  Título / Tema do Reels *
-                </label>
+                <label className="block text-slate-300 mb-1">Título / Tema *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Teaser Festa 15 Anos"
                   value={newReel.title}
                   onChange={(e) => setNewReel({ ...newReel, title: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-semibold text-slate-200 mb-1">
-                    Data da Postagem
-                  </label>
+                  <label className="block text-slate-300 mb-1">Data</label>
                   <input
                     type="date"
                     required
                     value={newReel.publishDate}
                     onChange={(e) => setNewReel({ ...newReel, publishDate: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-pink-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                   />
                 </div>
-
                 <div>
-                  <label className="block font-semibold text-slate-200 mb-1">
-                    Responsável (Digite livremente)
-                  </label>
+                  <label className="block text-slate-300 mb-1">Responsável</label>
                   <input
                     type="text"
                     list="assignees-list"
-                    placeholder="Digite o nome..."
                     value={newReel.author}
                     onChange={(e) => setNewReel({ ...newReel, author: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-pink-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-200 mb-1">
-                  Link do Reels no Instagram (Opcional)
-                </label>
+                <label className="block text-slate-300 mb-1">Link do Reels (opcional)</label>
                 <input
                   type="url"
-                  placeholder="https://www.instagram.com/reel/..."
                   value={newReel.url}
                   onChange={(e) => setNewReel({ ...newReel, url: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500 text-[11px]"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsReelModalOpen(false)}
-                  className="px-4 py-2 text-slate-400 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 font-semibold bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white rounded-xl shadow-md transition-all"
-                >
-                  Salvar Reels Postado
-                </button>
+              <div className="flex justify-end space-x-2 pt-3">
+                <button type="button" onClick={() => setIsReelModalOpen(false)} className="px-4 py-2 text-slate-400">Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-pink-600 text-white rounded-xl font-bold">Salvar Reels</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Modal Player de Vídeo */}
-      {playerModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-4 shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2">
-                <Play className="w-4 h-4 text-pink-400" />
-                <h3 className="text-sm font-bold text-white truncate">{playerModal.title}</h3>
+      {/* Modal Ajustar Meta */}
+      {isEditingGoals && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6">
+            <h3 className="text-base font-bold text-white mb-4">Meta para {selectedMonth}</h3>
+            <form onSubmit={handleSaveGoal} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 mb-1">Quantidade de Reels</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={tempGoalInput}
+                  onChange={(e) => setTempGoalInput(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                />
               </div>
-              <button
-                onClick={() => setPlayerModal({ isOpen: false, title: '', url: '' })}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="mt-4 bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
-              {playerModal.url ? (
-                <video
-                  src={playerModal.url}
-                  controls
-                  autoPlay
-                  className="w-full h-full object-contain"
-                >
-                  Seu navegador não suporta a prévia direta. Abra o link externo.
-                </video>
-              ) : (
-                <p className="text-xs text-slate-400">Vídeo indisponível.</p>
-              )}
-            </div>
-
-            <div className="mt-3 flex items-center justify-end text-xs text-slate-400">
-              <button
-                onClick={() => setPlayerModal({ isOpen: false, title: '', url: '' })}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs"
-              >
-                Fechar Vídeo
-              </button>
-            </div>
+              <div className="flex justify-end space-x-2 pt-3">
+                <button type="button" onClick={() => setIsEditingGoals(false)} className="px-4 py-2 text-slate-400">Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold">Salvar Meta</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Modal Anexar Festa */}
+      {/* Modal Festa */}
       {isLeadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6">
+            <h3 className="text-base font-bold text-white mb-4">Anexar Festa</h3>
+            <form onSubmit={handleCreateLead} className="space-y-3 text-xs">
               <div>
-                <h3 className="text-lg font-bold text-white">Anexar Festa & Vídeos</h3>
-                <p className="text-xs text-slate-400">Vincule os links dos vídeos da festa</p>
-              </div>
-              <button
-                onClick={() => setIsLeadModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateLead} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Nome do Aniversariante / Festa *</label>
+                <label className="block text-slate-300 mb-1">Nome da Festa *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Luiza 15 Anos"
                   value={newLead.birthdayPerson}
                   onChange={(e) => setNewLead({ ...newLead, birthdayPerson: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-medium text-slate-300 mb-1">Data da Festa</label>
+                  <label className="block text-slate-300 mb-1">Data</label>
                   <input
                     type="date"
                     value={newLead.eventDate}
                     onChange={(e) => setNewLead({ ...newLead, eventDate: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                   />
                 </div>
-
                 <div>
-                  <label className="block font-medium text-slate-300 mb-1">Contatos Enviados / Disparados</label>
+                  <label className="block text-slate-300 mb-1">Contatos Enviados</label>
                   <input
                     type="number"
-                    min="0"
-                    placeholder="Ex: 50"
                     value={newLead.contactsSent}
                     onChange={(e) => setNewLead({ ...newLead, contactsSent: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                   />
                 </div>
               </div>
 
-              {/* 1. Vídeo Lead */}
-              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-pink-500/20 space-y-2">
-                <span className="font-bold text-pink-300 flex items-center gap-1.5">
-                  <Video className="w-4 h-4 text-pink-400" /> 1. Link do Vídeo Lead
-                </span>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Título do vídeo (opcional)"
-                    value={newLead.leadVideoName}
-                    onChange={(e) => setNewLead({ ...newLead, leadVideoName: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500 text-xs"
-                  />
-                  <div className="sm:col-span-2 relative">
-                    <input
-                      type="url"
-                      placeholder="https://drive.google.com/... ou link do vídeo"
-                      value={newLead.leadVideoUrl}
-                      onChange={(e) => setNewLead({ ...newLead, leadVideoUrl: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500 pr-9 text-xs"
-                    />
-                    <FolderDown className="w-4 h-4 text-amber-400 absolute right-3 top-2.5 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Vídeo Homenagem */}
-              <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-purple-500/20 space-y-2">
-                <span className="font-bold text-purple-300 flex items-center gap-1.5">
-                  <HeartHandshake className="w-4 h-4 text-purple-400" /> 2. Link do Vídeo Homenagem
-                </span>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Título do vídeo (opcional)"
-                    value={newLead.tributeVideoName}
-                    onChange={(e) => setNewLead({ ...newLead, tributeVideoName: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 text-xs"
-                  />
-                  <div className="sm:col-span-2 relative">
-                    <input
-                      type="url"
-                      placeholder="https://drive.google.com/... ou link do vídeo"
-                      value={newLead.tributeVideoUrl}
-                      onChange={(e) => setNewLead({ ...newLead, tributeVideoUrl: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 pr-9 text-xs"
-                    />
-                    <FolderDown className="w-4 h-4 text-amber-400 absolute right-3 top-2.5 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Status Inicial</label>
-                  <select
-                    value={newLead.status}
-                    onChange={(e) => setNewLead({ ...newLead, status: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="pendente">Pendente de Disparo</option>
-                    <option value="disparado">Disparado aos Contatos</option>
-                    <option value="respondendo">Respondendo Leads</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Observações</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Família adorou os cortes"
-                    value={newLead.notes}
-                    onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsLeadModalOpen(false)}
-                  className="px-4 py-2 text-slate-400 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 font-semibold bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white rounded-xl shadow-md transition-all"
-                >
-                  Salvar Festa
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Demanda */}
-      {isDemandModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-lg font-bold text-white">Nova Demanda Semanal</h3>
-              <button
-                onClick={() => setIsDemandModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateDemand} className="space-y-4 mt-4 text-xs">
               <div>
-                <label className="block font-medium text-slate-300 mb-1">O que precisa ser feito? *</label>
+                <label className="block text-slate-300 mb-1">Link do Vídeo Lead</label>
                 <input
-                  type="text"
-                  required
-                  placeholder="Ex: Edição de Reels"
-                  value={newDemand.title}
-                  onChange={(e) => setNewDemand({ ...newDemand, title: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">
-                    Responsável (Digite livremente)
-                  </label>
-                  <input
-                    type="text"
-                    list="assignees-list"
-                    placeholder="Digite o nome..."
-                    value={newDemand.assignee}
-                    onChange={(e) => setNewDemand({ ...newDemand, assignee: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Formato</label>
-                  <select
-                    value={newDemand.channel}
-                    onChange={(e) => setNewDemand({ ...newDemand, channel: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {CHANNELS.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Dia</label>
-                  <select
-                    value={newDemand.day}
-                    onChange={(e) => setNewDemand({ ...newDemand, day: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {DAYS.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Status</label>
-                  <select
-                    value={newDemand.status}
-                    onChange={(e) => setNewDemand({ ...newDemand, status: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="todo">A Fazer</option>
-                    <option value="in-progress">Em Andamento</option>
-                    <option value="done">Concluído</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsDemandModalOpen(false)}
-                  className="px-4 py-2 text-slate-400 hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-md transition-all"
-                >
-                  Salvar Demanda
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar / Vincular Link do Drive */}
-      {driveModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-amber-500/30 rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
-                  <FolderDown className="w-4 h-4 text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Vincular Link de Nuvem</h3>
-                  <p className="text-[11px] text-slate-400">{driveModal.partyName}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDriveModal({ ...driveModal, isOpen: false })}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveDriveLink} className="space-y-4 mt-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-200 mb-1">
-                  Título de Exibição
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Pasta Google Drive - Fotos & Vídeos"
-                  value={driveModal.name}
-                  onChange={(e) => setDriveModal({ ...driveModal, name: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400 placeholder-slate-500"
+                  type="url"
+                  placeholder="https://..."
+                  value={newLead.leadVideoUrl}
+                  onChange={(e) => setNewLead({ ...newLead, leadVideoUrl: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-200 mb-1">
-                  Link da Nuvem (URL) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    required
-                    placeholder="https://drive.google.com/drive/folders/..."
-                    value={driveModal.url}
-                    onChange={(e) => setDriveModal({ ...driveModal, url: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-400 placeholder-slate-500 pr-9 font-mono text-[11px]"
-                  />
-                  <FolderDown className="w-4 h-4 text-amber-400 absolute right-3 top-2.5 pointer-events-none" />
-                </div>
+                <label className="block text-slate-300 mb-1">Link da Homenagem</label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={newLead.tributeVideoUrl}
+                  onChange={(e) => setNewLead({ ...newLead, tributeVideoUrl: e.target.value })}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                />
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setDriveModal({ ...driveModal, isOpen: false })}
-                  className="px-4 py-2 text-slate-400 hover:text-white font-medium"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 font-semibold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl shadow-lg transition-all"
-                >
-                  Salvar Link
-                </button>
+              <div className="flex justify-end space-x-2 pt-3">
+                <button type="button" onClick={() => setIsLeadModalOpen(false)} className="px-4 py-2 text-slate-400">Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold">Salvar Festa</button>
               </div>
             </form>
           </div>
