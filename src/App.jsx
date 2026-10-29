@@ -24,6 +24,13 @@ const InstagramIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
+const getCurrentMonthKey = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
 const INITIAL_DEMANDS = [
   {
     id: 'd-1',
@@ -83,14 +90,16 @@ const INITIAL_INSTA_REELS = [
     title: 'Teaser Neon Debutante 15 Anos',
     publishDate: '2026-10-20',
     author: 'Mariana Social',
-    url: 'https://instagram.com/reel/exemplo1'
+    url: 'https://instagram.com/reel/exemplo1',
+    monthKey: '2026-10'
   },
   {
     id: 'reel-2',
     title: 'Entrada dos Noivos com Sparkles',
     publishDate: '2026-10-23',
     author: 'Lucas Editor',
-    url: 'https://instagram.com/reel/exemplo2'
+    url: 'https://instagram.com/reel/exemplo2',
+    monthKey: '2026-10'
   }
 ];
 
@@ -150,18 +159,21 @@ const DAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', '
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('demandas');
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
 
-  const [goals, setGoals] = useState(() => {
+  // Metas armazenadas por mês (ex: { '2026-10': 12, '2026-11': 15 })
+  const [monthlyGoals, setMonthlyGoals] = useState(() => {
     try {
-      const saved = localStorage.getItem('@mvp_prod_goals');
-      return saved ? JSON.parse(saved) : { monthlyReelsTarget: 12 };
+      const saved = localStorage.getItem('@mvp_prod_monthly_goals');
+      if (saved) return JSON.parse(saved);
+      return { [getCurrentMonthKey()]: 12 };
     } catch {
-      return { monthlyReelsTarget: 12 };
+      return { [getCurrentMonthKey()]: 12 };
     }
   });
 
   const [isEditingGoals, setIsEditingGoals] = useState(false);
-  const [tempGoals, setTempGoals] = useState(goals);
+  const [tempGoalInput, setTempGoalInput] = useState('');
 
   const [demands, setDemands] = useState(() => {
     try {
@@ -245,7 +257,7 @@ export default function App() {
     tributeVideoUrl: ''
   });
 
-  // Lista dinâmica com todos os responsáveis digitados no app
+  // Lista dinâmica de responsáveis digitados
   const dynamicAssignees = useMemo(() => {
     const fromDemands = demands.map(d => d.assignee?.trim()).filter(Boolean);
     const fromReels = instaReels.map(r => r.author?.trim()).filter(Boolean);
@@ -253,14 +265,14 @@ export default function App() {
     return unique.sort();
   }, [demands, instaReels]);
 
-  // Persistência contínua no localStorage
+  // Persistência automática no localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('@mvp_prod_goals', JSON.stringify(goals));
+      localStorage.setItem('@mvp_prod_monthly_goals', JSON.stringify(monthlyGoals));
     } catch (e) {
       console.error(e);
     }
-  }, [goals]);
+  }, [monthlyGoals]);
 
   useEffect(() => {
     try {
@@ -285,6 +297,45 @@ export default function App() {
       console.error(e);
     }
   }, [videoLeads]);
+
+  // Filtra Reels do mês selecionado
+  const currentMonthReels = useMemo(() => {
+    return instaReels.filter(reel => {
+      const itemMonth = reel.monthKey || reel.publishDate?.slice(0, 7);
+      return itemMonth === selectedMonth;
+    });
+  }, [instaReels, selectedMonth]);
+
+  // Métricas dinâmicas com virada automática de mês
+  const metrics = useMemo(() => {
+    const totalDemands = demands.length;
+    const completedDemands = demands.filter(d => d.status === 'done').length;
+    const completionRate = totalDemands > 0 ? Math.round((completedDemands / totalDemands) * 100) : 0;
+
+    const totalLeadsSent = videoLeads.reduce((acc, curr) => acc + (Number(curr.contactsSent) || 0), 0);
+    const totalEvents = videoLeads.length;
+    const eventsDispatched = videoLeads.filter(v => v.status === 'disparado' || v.status === 'respondendo').length;
+
+    const reelsGoalTarget = Number(monthlyGoals[selectedMonth]) || 12;
+    const totalReelsPosted = currentMonthReels.length;
+    const reelsProgressPercent = Math.min(Math.round((totalReelsPosted / reelsGoalTarget) * 100), 100);
+    const reelsRemaining = Math.max(reelsGoalTarget - totalReelsPosted, 0);
+    const isGoalCompleted = totalReelsPosted >= reelsGoalTarget;
+
+    return {
+      totalDemands,
+      completedDemands,
+      completionRate,
+      totalLeadsSent,
+      totalEvents,
+      eventsDispatched,
+      totalReelsPosted,
+      reelsGoalTarget,
+      reelsProgressPercent,
+      reelsRemaining,
+      isGoalCompleted
+    };
+  }, [demands, videoLeads, currentMonthReels, monthlyGoals, selectedMonth]);
 
   const handleToggleDemandStatus = (id) => {
     setDemands(prev => {
@@ -336,16 +387,24 @@ export default function App() {
   const handleCreateReel = (e) => {
     e.preventDefault();
     if (!newReel.title.trim()) return;
+    
+    const dateValue = newReel.publishDate || new Date().toISOString().split('T')[0];
+    const monthKey = dateValue.slice(0, 7);
+
     const item = { 
       ...newReel, 
       id: 'reel-' + Date.now(),
+      publishDate: dateValue,
+      monthKey: monthKey,
       author: newReel.author.trim() || 'Equipe'
     };
+
     setInstaReels(prev => {
       const updated = [item, ...prev];
       localStorage.setItem('@mvp_prod_reels', JSON.stringify(updated));
       return updated;
     });
+
     setIsReelModalOpen(false);
     setNewReel({
       title: '',
@@ -487,43 +546,14 @@ export default function App() {
     }
   };
 
-  const metrics = useMemo(() => {
-    const totalDemands = demands.length;
-    const completedDemands = demands.filter(d => d.status === 'done').length;
-    const completionRate = totalDemands > 0 ? Math.round((completedDemands / totalDemands) * 100) : 0;
-
-    const totalLeadsSent = videoLeads.reduce((acc, curr) => acc + (Number(curr.contactsSent) || 0), 0);
-    const totalEvents = videoLeads.length;
-    const eventsDispatched = videoLeads.filter(v => v.status === 'disparado' || v.status === 'respondendo').length;
-
-    const totalReelsPosted = instaReels.length;
-    const reelsGoalTarget = Number(goals.monthlyReelsTarget) || 1;
-    const reelsProgressPercent = Math.min(Math.round((totalReelsPosted / reelsGoalTarget) * 100), 100);
-    const reelsRemaining = Math.max(reelsGoalTarget - totalReelsPosted, 0);
-    const isGoalCompleted = totalReelsPosted >= reelsGoalTarget;
-
-    return {
-      totalDemands,
-      completedDemands,
-      completionRate,
-      totalLeadsSent,
-      totalEvents,
-      eventsDispatched,
-      totalReelsPosted,
-      reelsGoalTarget,
-      reelsProgressPercent,
-      reelsRemaining,
-      isGoalCompleted
-    };
-  }, [demands, videoLeads, instaReels, goals]);
-
-  const handleSaveGoals = (e) => {
+  const handleSaveGoal = (e) => {
     e.preventDefault();
-    const updated = {
-      monthlyReelsTarget: Math.max(1, Number(tempGoals.monthlyReelsTarget) || 1)
-    };
-    setGoals(updated);
-    localStorage.setItem('@mvp_prod_goals', JSON.stringify(updated));
+    const targetVal = Math.max(1, Number(tempGoalInput) || 12);
+    setMonthlyGoals(prev => {
+      const updated = { ...prev, [selectedMonth]: targetVal };
+      localStorage.setItem('@mvp_prod_monthly_goals', JSON.stringify(updated));
+      return updated;
+    });
     setIsEditingGoals(false);
   };
 
@@ -541,19 +571,20 @@ export default function App() {
   });
 
   const copyWeeklySummaryToWhatsApp = () => {
-    let text = `🚀 *RELATÓRIO: MÍDIAS VIA PARQUE*\n\n`;
+    let text = `🚀 *RELATÓRIO: MÍDIAS VIA PARQUE*\n`;
+    text += `📅 *Mês de Referência:* ${selectedMonth}\n\n`;
     text += `🎯 *METAS DE REELS NO INSTAGRAM:*\n`;
-    text += `• Reels Postados: ${metrics.totalReelsPosted}/${metrics.reelsGoalTarget} (${metrics.reelsProgressPercent}%) ${metrics.isGoalCompleted ? '🎉 META DE REELS BATIDA!' : `(Faltam ${metrics.reelsRemaining} vídeos)`}\n\n`;
+    text += `• Reels Postados: ${metrics.totalReelsPosted}/${metrics.reelsGoalTarget} (${metrics.reelsProgressPercent}%) ${metrics.isGoalCompleted ? '🎉 META DO MÊS BATIDA!' : `(Faltam ${metrics.reelsRemaining} vídeos)`}\n\n`;
     text += `📊 *RESULTADOS GERAIS:*\n`;
     text += `• Demandas da Semana: ${metrics.completedDemands}/${metrics.totalDemands} (${metrics.completionRate}% concluídas)\n`;
     text += `• Total de Contatos Alcançados: *${metrics.totalLeadsSent}* pessoas notificadas\n`;
     text += `• Festas com Vídeos Mapeados: ${metrics.eventsDispatched} de ${metrics.totalEvents}\n`;
 
-    text += `\n🎬 *ÚLTIMOS REELS PUBLICADOS NO INSTAGRAM:*\n`;
-    if (instaReels.length === 0) {
-      text += `_Nenhum Reels registrado este mês ainda._\n`;
+    text += `\n🎬 *REELS DESTE MÊS (${selectedMonth}):*\n`;
+    if (currentMonthReels.length === 0) {
+      text += `_Nenhum Reels registrado para este mês ainda._\n`;
     } else {
-      instaReels.forEach(r => {
+      currentMonthReels.forEach(r => {
         text += `• ${r.title} (${r.publishDate}) - Resp: ${r.author} ${r.url ? '(' + r.url + ')' : ''}\n`;
       });
     }
@@ -584,7 +615,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Lista de sugestão dinâmica para todos os campos de responsáveis */}
+      {/* Sugestões dinâmicas de responsáveis */}
       <datalist id="assignees-list">
         {dynamicAssignees.map(name => (
           <option key={name} value={name} />
@@ -636,7 +667,7 @@ export default function App() {
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
-        {/* Banner de Metas */}
+        {/* Banner de Metas & Histórico Mensal */}
         <section className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-purple-950/60 border border-indigo-500/30 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
           <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -647,11 +678,11 @@ export default function App() {
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-base sm:text-lg font-bold text-white">Metas & Indicadores de Mídia</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-white">Metas & Histórico Mensal</h2>
                   {metrics.isGoalCompleted ? (
                     <span className="flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-semibold animate-pulse">
                       <Trophy className="w-3 h-3 text-emerald-400" />
-                      <span>Meta de Reels Batida! 🎉</span>
+                      <span>Meta Batida! 🎉</span>
                     </span>
                   ) : (
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 font-medium">
@@ -659,30 +690,44 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400">Acompanhamento dos lançamentos no Instagram, contatos alcançados e grade da semana</p>
+                <p className="text-xs text-slate-400">Contagem de Reels reinicia automaticamente a cada novo mês</p>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                setTempGoals(goals);
-                setIsEditingGoals(true);
-              }}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-indigo-400/50 text-xs font-semibold transition-all shadow-sm"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Ajustar Meta de Reels</span>
-            </button>
+            {/* Seletor de Mês e Ajuste de Meta */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-slate-800/90 border border-slate-700 rounded-xl px-2.5 py-1">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400 mr-2" />
+                <span className="text-[11px] text-slate-400 mr-1.5">Mês:</span>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  setTempGoalInput(String(metrics.reelsGoalTarget));
+                  setIsEditingGoals(true);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-indigo-400/50 text-xs font-semibold transition-all shadow-sm"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Ajustar Meta</span>
+              </button>
+            </div>
           </div>
 
-          {/* Cards */}
+          {/* Cards de Métricas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-            {/* Meta de Reels */}
+            {/* Meta de Reels do Mês Selecionado */}
             <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 relative group hover:border-pink-500/40 transition-all flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-slate-400 text-xs">
                   <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <InstagramIcon className="w-4 h-4 text-pink-400" /> Meta de Reels no Insta
+                    <InstagramIcon className="w-4 h-4 text-pink-400" /> Reels em {selectedMonth}
                   </span>
                   <button
                     onClick={() => setIsReelModalOpen(true)}
@@ -721,7 +766,7 @@ export default function App() {
                   onClick={() => setActiveTab('reelsInsta')}
                   className="text-pink-400 hover:text-pink-300 font-medium underline text-[11px]"
                 >
-                  Ver Reels postados ({instaReels.length})
+                  Ver Reels de {selectedMonth} ({metrics.totalReelsPosted})
                 </button>
                 <span className="text-slate-300 font-medium">
                   {metrics.isGoalCompleted ? '🎯 Meta batida!' : `Faltam ${metrics.reelsRemaining}`}
@@ -747,7 +792,7 @@ export default function App() {
                 </div>
 
                 <p className="text-xs text-slate-400 mt-2">
-                  Soma total de convidados que receberam disparos de vídeos através das festas cadastradas.
+                  Soma de convidados que receberam disparos de vídeos através das festas cadastradas.
                 </p>
               </div>
 
@@ -797,7 +842,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* Abas e Ações */}
+        {/* Abas de Navegação */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between border-b border-slate-800 pb-3 gap-3">
           <div className="flex flex-wrap space-x-2 gap-y-2">
             <button
@@ -833,7 +878,7 @@ export default function App() {
               }`}
             >
               <InstagramIcon className="w-4 h-4" />
-              <span>Reels Lançados ({instaReels.length})</span>
+              <span>Reels Lançados ({currentMonthReels.length})</span>
             </button>
           </div>
 
@@ -879,7 +924,6 @@ export default function App() {
                   <Filter className="w-3 h-3" /> Filtrar por:
                 </span>
                 
-                {/* Filtro Dinâmico de Membros */}
                 <select
                   value={selectedAssignee}
                   onChange={(e) => setSelectedAssignee(e.target.value)}
@@ -910,7 +954,7 @@ export default function App() {
 
             {filteredDemands.length === 0 ? (
               <div className="text-center py-12 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
-                <p className="text-slate-400 text-sm">Nenhuma demanda semanal encontrada com os filtros aplicados.</p>
+                <p className="text-slate-400 text-sm">Nenhuma demanda semanal encontrada.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1253,10 +1297,10 @@ export default function App() {
             <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <InstagramIcon className="w-5 h-5 text-pink-400" /> Histórico de Reels Postados no Instagram
+                  <InstagramIcon className="w-5 h-5 text-pink-400" /> Histórico de Reels em {selectedMonth}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {metrics.totalReelsPosted} Reels lançados de {metrics.reelsGoalTarget} estipulados para o mês ({metrics.reelsProgressPercent}% concluído)
+                  {metrics.totalReelsPosted} Reels lançados de {metrics.reelsGoalTarget} estipulados para este mês ({metrics.reelsProgressPercent}% concluído)
                 </p>
               </div>
 
@@ -1269,14 +1313,14 @@ export default function App() {
               </button>
             </div>
 
-            {instaReels.length === 0 ? (
+            {currentMonthReels.length === 0 ? (
               <div className="text-center py-16 bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
                 <InstagramIcon className="w-8 h-8 text-pink-500 mx-auto mb-2 opacity-50" />
-                <p className="text-slate-400 text-sm">Nenhum Reels registrado este mês.</p>
+                <p className="text-slate-400 text-sm">Nenhum Reels registrado para o mês {selectedMonth}.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {instaReels.map((reel) => (
+                {currentMonthReels.map((reel) => (
                   <div
                     key={reel.id}
                     className="bg-slate-900 border border-slate-800 hover:border-pink-500/40 rounded-2xl p-4 flex flex-col justify-between transition-all"
@@ -1339,7 +1383,7 @@ export default function App() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center space-x-2">
                 <Target className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Meta de Reels no Instagram</h3>
+                <h3 className="text-base font-bold text-white">Meta de Reels para {selectedMonth}</h3>
               </div>
               <button
                 onClick={() => setIsEditingGoals(false)}
@@ -1349,10 +1393,10 @@ export default function App() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveGoals} className="space-y-4 mt-4 text-xs">
+            <form onSubmit={handleSaveGoal} className="space-y-4 mt-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-200 mb-1">
-                  🎬 Meta de Reels Postados no Mês
+                  🎬 Meta de Reels do Mês ({selectedMonth})
                 </label>
                 <div className="relative">
                   <input
@@ -1360,8 +1404,8 @@ export default function App() {
                     min="1"
                     max="1000"
                     required
-                    value={tempGoals.monthlyReelsTarget}
-                    onChange={(e) => setTempGoals({ monthlyReelsTarget: e.target.value })}
+                    value={tempGoalInput}
+                    onChange={(e) => setTempGoalInput(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-bold text-sm"
                   />
                   <span className="absolute right-3 top-2.5 text-slate-400 text-xs">vídeos Reels</span>
@@ -1399,7 +1443,7 @@ export default function App() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">Informar Reels Postado</h3>
-                  <p className="text-[11px] text-slate-400">Atualizará a contagem da meta do mês</p>
+                  <p className="text-[11px] text-slate-400">Vinculado ao mês da data selecionada</p>
                 </div>
               </div>
               <button
