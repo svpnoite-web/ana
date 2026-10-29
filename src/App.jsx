@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calendar, CheckCircle2, Clock, AlertCircle, Plus, Filter, 
   Users, Video, Share2, Trash2, Edit3, Check, Flame,
-  ExternalLink, Play, Film, HeartHandshake, X, Link as LinkIcon,
-  Search, Target, Trophy, FolderDown, Download, Upload
+  ExternalLink, Film, X, Search, Target, Trophy,
+  RefreshCw
 } from 'lucide-react';
+import { supabase } from './supabase';
 
 const InstagramIcon = ({ className = "w-4 h-4" }) => (
   <svg 
@@ -31,99 +32,18 @@ const getCurrentMonthKey = () => {
   return `${year}-${month}`;
 };
 
-// Funções seguras de persistência direta
-const getSavedData = (key, fallback) => {
-  try {
-    const item = window.localStorage.getItem(key);
-    return item ? JSON.parse(item) : fallback;
-  } catch (e) {
-    console.error('Erro ao ler localStorage', e);
-    return fallback;
-  }
-};
-
-const setSavedData = (key, data) => {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.error('Erro ao gravar localStorage', e);
-  }
-};
-
-const INITIAL_DEMANDS = [
-  {
-    id: 'd-1',
-    title: 'Edição de Reels: Melhores momentos Sofia 15 anos',
-    assignee: 'Lucas Editor',
-    channel: 'Reels',
-    day: 'Segunda-feira',
-    status: 'done',
-    priority: 'alta'
-  },
-  {
-    id: 'd-2',
-    title: 'Post carrossel: Dicas de cardápio e decoração neon',
-    assignee: 'Mariana Social',
-    channel: 'Feed / Carrossel',
-    day: 'Terça-feira',
-    status: 'in-progress',
-    priority: 'media'
-  }
-];
-
-const INITIAL_INSTA_REELS = [
-  {
-    id: 'reel-1',
-    title: 'Teaser Neon Debutante 15 Anos',
-    publishDate: '2026-10-20',
-    author: 'Mariana Social',
-    url: 'https://instagram.com/reel/exemplo1',
-    monthKey: '2026-10'
-  }
-];
-
-const INITIAL_VIDEO_LEADS = [
-  {
-    id: 'vl-1',
-    birthdayPerson: 'Isabela Martins (15 Anos)',
-    eventDate: '2026-10-24',
-    contactsSent: 48,
-    status: 'disparado',
-    leadVideo: {
-      url: 'https://instagram.com/reel/exemplo-isabela',
-      name: 'Reels Isabela 15 Anos'
-    },
-    tributeVideo: {
-      url: 'https://drive.google.com',
-      name: 'Homenagem Pais e Amigos HD'
-    },
-    notes: 'Enviado para a lista de convidados.'
-  }
-];
-
 const CHANNELS = ['Reels', 'TikTok', 'Stories', 'Feed / Carrossel', 'Tráfego Pago', 'YouTube'];
 const DAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('demandas');
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
+  const [loading, setLoading] = useState(true);
 
-  // Estados com leitura segura
-  const [monthlyGoals, setMonthlyGoals] = useState(() => 
-    getSavedData('@mvp_goals', { [getCurrentMonthKey()]: 12 })
-  );
-
-  const [demands, setDemands] = useState(() => 
-    getSavedData('@mvp_demands', INITIAL_DEMANDS)
-  );
-
-  const [instaReels, setInstaReels] = useState(() => 
-    getSavedData('@mvp_reels', INITIAL_INSTA_REELS)
-  );
-
-  const [videoLeads, setVideoLeads] = useState(() => 
-    getSavedData('@mvp_festas', INITIAL_VIDEO_LEADS)
-  );
+  const [monthlyGoals, setMonthlyGoals] = useState({ [getCurrentMonthKey()]: 12 });
+  const [demands, setDemands] = useState([]);
+  const [instaReels, setInstaReels] = useState([]);
+  const [videoLeads, setVideoLeads] = useState([]);
 
   const [isEditingGoals, setIsEditingGoals] = useState(false);
   const [tempGoalInput, setTempGoalInput] = useState('');
@@ -143,16 +63,6 @@ export default function App() {
     publishDate: new Date().toISOString().split('T')[0],
     author: '',
     url: ''
-  });
-
-  const [driveModal, setDriveModal] = useState({
-    isOpen: false,
-    partyId: null,
-    partyName: '',
-    videoType: '',
-    videoTitle: '',
-    url: '',
-    name: ''
   });
 
   const [newDemand, setNewDemand] = useState({
@@ -176,14 +86,61 @@ export default function App() {
     tributeVideoUrl: ''
   });
 
-  // Lista dinâmica de responsáveis
+  const fetchDataFromCloud = async () => {
+    setLoading(true);
+    try {
+      const [demandsRes, reelsRes, leadsRes, goalsRes] = await Promise.all([
+        supabase.from('demands').select('*').order('created_at', { ascending: false }),
+        supabase.from('insta_reels').select('*').order('publish_date', { ascending: false }),
+        supabase.from('video_leads').select('*').order('created_at', { ascending: false }),
+        supabase.from('monthly_goals').select('*')
+      ]);
+
+      if (demandsRes.data) setDemands(demandsRes.data);
+      if (reelsRes.data) {
+        setInstaReels(reelsRes.data.map(r => ({
+          id: r.id,
+          title: r.title,
+          publishDate: r.publish_date,
+          monthKey: r.month_key,
+          author: r.author,
+          url: r.url
+        })));
+      }
+      if (leadsRes.data) {
+        setVideoLeads(leadsRes.data.map(l => ({
+          id: l.id,
+          birthdayPerson: l.birthday_person,
+          eventDate: l.event_date,
+          contactsSent: l.contacts_sent,
+          status: l.status,
+          notes: l.notes,
+          leadVideo: { name: l.lead_video_name, url: l.lead_video_url },
+          tributeVideo: { name: l.tribute_video_name, url: l.tribute_video_url }
+        })));
+      }
+      if (goalsRes.data) {
+        const goalsObj = {};
+        goalsRes.data.forEach(g => { goalsObj[g.month_key] = g.target; });
+        setMonthlyGoals(prev => ({ ...prev, ...goalsObj }));
+      }
+    } catch (err) {
+      console.error('Erro ao ler do Supabase:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDataFromCloud();
+  }, []);
+
   const dynamicAssignees = useMemo(() => {
     const fromDemands = demands.map(d => d.assignee?.trim()).filter(Boolean);
     const fromReels = instaReels.map(r => r.author?.trim()).filter(Boolean);
     return Array.from(new Set([...fromDemands, ...fromReels])).sort();
   }, [demands, instaReels]);
 
-  // Filtra Reels do mês
   const currentMonthReels = useMemo(() => {
     return instaReels.filter(reel => {
       const itemMonth = reel.monthKey || reel.publishDate?.slice(0, 7);
@@ -191,7 +148,6 @@ export default function App() {
     });
   }, [instaReels, selectedMonth]);
 
-  // Métricas
   const metrics = useMemo(() => {
     const totalDemands = demands.length;
     const completedDemands = demands.filter(d => d.status === 'done').length;
@@ -222,205 +178,142 @@ export default function App() {
     };
   }, [demands, videoLeads, currentMonthReels, monthlyGoals, selectedMonth]);
 
-  // AÇÕES COM GRAVAÇÃO INSTANTÂNEA E FORÇADA NO DISCO
-  const handleToggleDemandStatus = (id) => {
-    setDemands(prev => {
-      const updated = prev.map(d => {
-        if (d.id === id) {
-          const next = d.status === 'done' ? 'todo' : d.status === 'todo' ? 'in-progress' : 'done';
-          return { ...d, status: next };
-        }
-        return d;
-      });
-      setSavedData('@mvp_demands', updated);
-      return updated;
-    });
+  const handleToggleDemandStatus = async (id, currentStatus) => {
+    const nextStatus = currentStatus === 'done' ? 'todo' : currentStatus === 'todo' ? 'in-progress' : 'done';
+    setDemands(prev => prev.map(d => d.id === id ? { ...d, status: nextStatus } : d));
+    await supabase.from('demands').update({ status: nextStatus }).eq('id', id);
   };
 
-  const handleDeleteDemand = (id) => {
-    setDemands(prev => {
-      const updated = prev.filter(d => d.id !== id);
-      setSavedData('@mvp_demands', updated);
-      return updated;
-    });
+  const handleDeleteDemand = async (id) => {
+    setDemands(prev => prev.filter(d => d.id !== id));
+    await supabase.from('demands').delete().eq('id', id);
   };
 
-  const handleCreateDemand = (e) => {
+  const handleCreateDemand = async (e) => {
     e.preventDefault();
     if (!newDemand.title.trim()) return;
-    const item = { 
-      ...newDemand, 
+    const item = {
       id: 'd-' + Date.now(),
-      assignee: newDemand.assignee.trim() || 'Não atribuído'
-    };
-    setDemands(prev => {
-      const updated = [item, ...prev];
-      setSavedData('@mvp_demands', updated);
-      return updated;
-    });
-    setIsDemandModalOpen(false);
-    setNewDemand({
-      title: '',
-      assignee: '',
-      channel: 'Reels',
-      day: 'Segunda-feira',
-      priority: 'alta',
+      title: newDemand.title.trim(),
+      assignee: newDemand.assignee.trim() || 'Não atribuído',
+      channel: newDemand.channel,
+      day: newDemand.day,
+      priority: newDemand.priority,
       status: 'todo'
-    });
+    };
+    setDemands(prev => [item, ...prev]);
+    setIsDemandModalOpen(false);
+    setNewDemand({ title: '', assignee: '', channel: 'Reels', day: 'Segunda-feira', priority: 'alta', status: 'todo' });
+    await supabase.from('demands').insert([item]);
   };
 
-  const handleCreateReel = (e) => {
+  const handleCreateReel = async (e) => {
     e.preventDefault();
     if (!newReel.title.trim()) return;
-    
     const dateValue = newReel.publishDate || new Date().toISOString().split('T')[0];
     const monthKey = dateValue.slice(0, 7);
 
-    const item = { 
-      ...newReel, 
+    const item = {
       id: 'reel-' + Date.now(),
-      publishDate: dateValue,
-      monthKey: monthKey,
-      author: newReel.author.trim() || 'Equipe'
+      title: newReel.title.trim(),
+      publish_date: dateValue,
+      month_key: monthKey,
+      author: newReel.author.trim() || 'Equipe',
+      url: newReel.url.trim()
     };
 
-    setInstaReels(prev => {
-      const updated = [item, ...prev];
-      setSavedData('@mvp_reels', updated);
-      return updated;
-    });
+    setInstaReels(prev => [{
+      id: item.id,
+      title: item.title,
+      publishDate: item.publish_date,
+      monthKey: item.month_key,
+      author: item.author,
+      url: item.url
+    }, ...prev]);
 
     setIsReelModalOpen(false);
-    setNewReel({
-      title: '',
-      publishDate: new Date().toISOString().split('T')[0],
-      author: '',
-      url: ''
-    });
+    setNewReel({ title: '', publishDate: new Date().toISOString().split('T')[0], author: '', url: '' });
+    await supabase.from('insta_reels').insert([item]);
   };
 
-  const handleDeleteReel = (id) => {
-    setInstaReels(prev => {
-      const updated = prev.filter(r => r.id !== id);
-      setSavedData('@mvp_reels', updated);
-      return updated;
-    });
+  const handleDeleteReel = async (id) => {
+    setInstaReels(prev => prev.filter(r => r.id !== id));
+    await supabase.from('insta_reels').delete().eq('id', id);
   };
 
-  const handleCreateLead = (e) => {
+  const handleCreateLead = async (e) => {
     e.preventDefault();
     if (!newLead.birthdayPerson.trim()) return;
 
-    const item = {
+    const row = {
       id: 'vl-' + Date.now(),
-      birthdayPerson: newLead.birthdayPerson.trim(),
-      eventDate: newLead.eventDate,
-      contactsSent: Number(newLead.contactsSent) || 0,
+      birthday_person: newLead.birthdayPerson.trim(),
+      event_date: newLead.eventDate,
+      contacts_sent: Number(newLead.contactsSent) || 0,
       status: newLead.status,
       notes: newLead.notes.trim(),
-      leadVideo: {
-        url: newLead.leadVideoUrl.trim(),
-        name: newLead.leadVideoName.trim() || (newLead.leadVideoUrl ? 'Vídeo Lead' : '')
-      },
-      tributeVideo: {
-        url: newLead.tributeVideoUrl.trim(),
-        name: newLead.tributeVideoName.trim() || (newLead.tributeVideoUrl ? 'Vídeo Homenagem' : '')
-      }
+      lead_video_name: newLead.leadVideoName.trim(),
+      lead_video_url: newLead.leadVideoUrl.trim(),
+      tribute_video_name: newLead.tributeVideoName.trim(),
+      tribute_video_url: newLead.tributeVideoUrl.trim()
     };
 
-    setVideoLeads(prev => {
-      const updated = [item, ...prev];
-      setSavedData('@mvp_festas', updated);
-      return updated;
-    });
+    setVideoLeads(prev => [{
+      id: row.id,
+      birthdayPerson: row.birthday_person,
+      eventDate: row.event_date,
+      contactsSent: row.contacts_sent,
+      status: row.status,
+      notes: row.notes,
+      leadVideo: { name: row.lead_video_name, url: row.lead_video_url },
+      tributeVideo: { name: row.tribute_video_name, url: row.tribute_video_url }
+    }, ...prev]);
+
     setIsLeadModalOpen(false);
-    
-    setNewLead({
-      birthdayPerson: '',
-      eventDate: '',
-      contactsSent: '',
-      status: 'pendente',
-      notes: '',
-      leadVideoName: '',
-      leadVideoUrl: '',
-      tributeVideoName: '',
-      tributeVideoUrl: ''
-    });
+    setNewLead({ birthdayPerson: '', eventDate: '', contactsSent: '', status: 'pendente', notes: '', leadVideoName: '', leadVideoUrl: '', tributeVideoName: '', tributeVideoUrl: '' });
+    await supabase.from('video_leads').insert([row]);
   };
 
-  const handleDeleteLead = (id) => {
-    setVideoLeads(prev => {
-      const updated = prev.filter(l => l.id !== id);
-      setSavedData('@mvp_festas', updated);
-      return updated;
-    });
+  const handleDeleteLead = async (id) => {
+    setVideoLeads(prev => prev.filter(l => l.id !== id));
+    await supabase.from('video_leads').delete().eq('id', id);
   };
 
-  const handleUpdateLeadStatus = (id, newStatus) => {
-    setVideoLeads(prev => {
-      const updated = prev.map(l => l.id === id ? { ...l, status: newStatus } : l);
-      setSavedData('@mvp_festas', updated);
-      return updated;
-    });
+  const handleUpdateLeadStatus = async (id, newStatus) => {
+    setVideoLeads(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+    await supabase.from('video_leads').update({ status: newStatus }).eq('id', id);
   };
 
-  const handleSaveGoal = (e) => {
+  const handleSaveGoal = async (e) => {
     e.preventDefault();
     const targetVal = Math.max(1, Number(tempGoalInput) || 12);
-    setMonthlyGoals(prev => {
-      const updated = { ...prev, [selectedMonth]: targetVal };
-      setSavedData('@mvp_goals', updated);
-      return updated;
-    });
+    setMonthlyGoals(prev => ({ ...prev, [selectedMonth]: targetVal }));
     setIsEditingGoals(false);
+    await supabase.from('monthly_goals').upsert({ month_key: selectedMonth, target: targetVal });
   };
 
-  // BACKUP E RESTAURAÇÃO PARA NUNCA PERDER DADOS
-  const handleExportBackup = () => {
-    const data = {
-      monthlyGoals,
-      demands,
-      instaReels,
-      videoLeads,
-      exportDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup_midias_via_parque_${getCurrentMonthKey()}.json`;
-    a.click();
-  };
+  const copyWeeklySummaryToWhatsApp = () => {
+    let text = `🚀 *RELATÓRIO: MÍDIAS VIA PARQUE*\n`;
+    text += `📅 *Mês de Referência:* ${selectedMonth}\n\n`;
+    text += `🎯 *METAS DE REELS NO INSTAGRAM:*\n`;
+    text += `• Reels Postados: ${metrics.totalReelsPosted}/${metrics.reelsGoalTarget} (${metrics.reelsProgressPercent}%) ${metrics.isGoalCompleted ? '🎉 META DO MÊS BATIDA!' : `(Faltam ${metrics.reelsRemaining} vídeos)`}\n\n`;
+    text += `📊 *RESULTADOS GERAIS:*\n`;
+    text += `• Demandas da Semana: ${metrics.completedDemands}/${metrics.totalDemands} (${metrics.completionRate}% concluídas)\n`;
+    text += `• Total de Contatos Alcançados: *${metrics.totalLeadsSent}* pessoas notificadas\n`;
+    text += `• Festas com Vídeos Mapeados: ${metrics.eventsDispatched} de ${metrics.totalEvents}\n`;
 
-  const handleImportBackup = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target.result);
-        if (data.demands) {
-          setDemands(data.demands);
-          setSavedData('@mvp_demands', data.demands);
-        }
-        if (data.instaReels) {
-          setInstaReels(data.instaReels);
-          setSavedData('@mvp_reels', data.instaReels);
-        }
-        if (data.videoLeads) {
-          setVideoLeads(data.videoLeads);
-          setSavedData('@mvp_festas', data.videoLeads);
-        }
-        if (data.monthlyGoals) {
-          setMonthlyGoals(data.monthlyGoals);
-          setSavedData('@mvp_goals', data.monthlyGoals);
-        }
-        alert('Dados restaurados com sucesso!');
-      } catch (err) {
-        alert('Arquivo de backup inválido.');
-      }
-    };
-    reader.readAsText(file);
+    text += `\n🎬 *REELS DESTE MÊS (${selectedMonth}):*\n`;
+    if (currentMonthReels.length === 0) {
+      text += `_Nenhum Reels registrado para este mês ainda._\n`;
+    } else {
+      currentMonthReels.forEach(r => {
+        text += `• ${r.title} (${r.publishDate}) - Resp: ${r.author} ${r.url ? '(' + r.url + ')' : ''}\n`;
+      });
+    }
+
+    navigator.clipboard.writeText(text);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2500);
   };
 
   const filteredDemands = demands.filter(d => {
@@ -454,34 +347,45 @@ export default function App() {
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="font-bold text-lg leading-tight text-white">Mídias Via Parque</h1>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 font-semibold uppercase">
-                  Reels & Vídeos
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-semibold uppercase">
+                  Nuvem Ativa ☁️
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Demandas Semanais, Reels & Festas</p>
+              <p className="text-xs text-slate-400">Sincronizado entre computador e telemóvel</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={handleExportBackup}
+              onClick={fetchDataFromCloud}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1"
-              title="Baixar Backup dos Dados"
+              title="Recarregar dados da nuvem"
             >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Backup</span>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
+              <span className="hidden sm:inline">Sincronizar</span>
             </button>
 
-            <label className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1 cursor-pointer" title="Restaurar Backup">
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Restaurar</span>
-              <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
-            </label>
+            <button
+              onClick={copyWeeklySummaryToWhatsApp}
+              className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs sm:text-sm font-medium"
+            >
+              {copyFeedback ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span className="font-semibold">Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">WhatsApp</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Conteúdo */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
         {/* Banner de Metas & Histórico */}
@@ -493,7 +397,7 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-white">Metas & Histórico Mensal</h2>
-                <p className="text-xs text-slate-400">Virada automática no início de cada mês</p>
+                <p className="text-xs text-slate-400">Contagem de Reels reinicia automaticamente a cada virada de mês</p>
               </div>
             </div>
 
@@ -541,10 +445,7 @@ export default function App() {
                   <span className="text-xs text-slate-400">/ {metrics.reelsGoalTarget} meta</span>
                 </div>
                 <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
-                  <div 
-                    className="h-full bg-pink-500 transition-all duration-500"
-                    style={{ width: `${metrics.reelsProgressPercent}%` }} 
-                  />
+                  <div className="h-full bg-pink-500 transition-all duration-500" style={{ width: `${metrics.reelsProgressPercent}%` }} />
                 </div>
               </div>
               <span className="text-[11px] text-slate-400 mt-2">
@@ -563,7 +464,7 @@ export default function App() {
                   <span className="text-xs text-slate-400 ml-1">pessoas impactadas</span>
                 </div>
               </div>
-              <span className="text-[11px] text-slate-400 mt-2">{metrics.eventsDispatched} festas disparadas</span>
+              <span className="text-[11px] text-slate-400 mt-2">{metrics.eventsDispatched} festas mapeadas</span>
             </div>
 
             {/* Demandas da Semana */}
@@ -577,10 +478,7 @@ export default function App() {
                   <span className="text-xs text-slate-400">/ {metrics.totalDemands} prontas</span>
                 </div>
                 <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-500 transition-all duration-500"
-                    style={{ width: `${metrics.completionRate}%` }} 
-                  />
+                  <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${metrics.completionRate}%` }} />
                 </div>
               </div>
               <span className="text-[11px] text-slate-400 mt-2">{metrics.completionRate}% concluído</span>
@@ -713,7 +611,7 @@ export default function App() {
 
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
                     <button
-                      onClick={() => handleToggleDemandStatus(demand.id)}
+                      onClick={() => handleToggleDemandStatus(demand.id, demand.status)}
                       className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border ${
                         demand.status === 'done'
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
@@ -873,7 +771,7 @@ export default function App() {
 
               <div className="flex justify-end space-x-2 pt-3">
                 <button type="button" onClick={() => setIsDemandModalOpen(false)} className="px-4 py-2 text-slate-400">Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold">Salvar</button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold">Salvar na Nuvem</button>
               </div>
             </form>
           </div>
